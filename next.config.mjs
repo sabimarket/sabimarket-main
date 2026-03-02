@@ -6,7 +6,8 @@ const withNextIntl = createNextIntlPlugin(
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    reactStrictMode: true
+    reactStrictMode: true,
+    serverExternalPackages: ['@prisma/client', '@prisma/engines'],
 };
 
 export default withNextIntl(nextConfig);
