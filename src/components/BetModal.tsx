@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Market } from '@/lib/polymarket/types';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { X, Loader2, Zap, ArrowUpRight, ArrowDownRight, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useAccount, useSignTypedData, useReadContract } from 'wagmi';
 import { useToast } from '@/components/Toast';
 import { parseUnits, formatUnits } from 'viem';
+import { useMarketStore } from '@/store/marketStore';
 
 // Polymarket CTF Exchange on Polygon
 const CTF_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
@@ -22,7 +23,7 @@ const USDC_ABI = [
 const SPREAD_BPS = 50;
 
 export function BetModal({
-  isOpen, onClose, market, selectedOutcome, currentPrice,
+  isOpen, onClose, market, selectedOutcome: initialOutcome, currentPrice,
 }: {
   isOpen: boolean; onClose: () => void; market: Market | null;
   selectedOutcome: "YES" | "NO" | null; currentPrice: number;
@@ -31,13 +32,46 @@ export function BetModal({
   const [isSigning, setIsSigning] = useState(false);
   const [step, setStep] = useState<'idle' | 'signing' | 'submitting' | 'done' | 'error'>('idle');
   const [txError, setTxError] = useState('');
+  const [selectedOutcome, setSelectedOutcome] = useState<"YES" | "NO">(initialOutcome || "YES");
+
+  // Get live prices from store
+  const { livePrices } = useMarketStore();
 
   const { address } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
   const { success: toastSuccess, error: toastError, warning: toastWarning, info: toastInfo } = useToast();
 
+  // Sync outcome when modal opens with new selection
+  useEffect(() => {
+    if (initialOutcome && isOpen) {
+      setSelectedOutcome(initialOutcome);
+    }
+  }, [initialOutcome, isOpen]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setStep('idle');
+      setTxError('');
+    }
+  }, [isOpen]);
+
   const isYes = selectedOutcome === 'YES';
   const accentColor = isYes ? '#00D26A' : '#FF4560';
+
+  // Get prices from Polymarket data (live prices or fallback to market data)
+  const yesTokenId = market?.tokens?.[0]?.token_id;
+  const noTokenId = market?.tokens?.[1]?.token_id;
+  
+  const yesPrice = yesTokenId && livePrices[yesTokenId] !== undefined 
+    ? livePrices[yesTokenId] 
+    : parseFloat(market?.outcomePrices?.[0] || "0.5");
+  const noPrice = noTokenId && livePrices[noTokenId] !== undefined 
+    ? livePrices[noTokenId] 
+    : parseFloat(market?.outcomePrices?.[1] || "0.5");
+  
+  // Use the correct price based on selected outcome
+  const basePrice = isYes ? yesPrice : noPrice;
 
   // Read USDC balance
   const { data: usdcBalance } = useReadContract({
@@ -51,12 +85,14 @@ export function BetModal({
 
   const validAmount = typeof amount === 'string' && amount === "" ? 0 : Number(amount);
   // Apply spread to price: buy slightly higher, sell slightly lower
+  // Ensure basePrice is valid (between 0.01 and 0.99)
+  const safeBasePrice = Math.max(0.01, Math.min(0.99, basePrice || 0.5));
   const spreadPrice = isYes
-    ? Math.min(0.99, currentPrice * (1 + SPREAD_BPS / 10000))
-    : Math.max(0.01, currentPrice * (1 - SPREAD_BPS / 10000));
+    ? Math.min(0.99, safeBasePrice * (1 + SPREAD_BPS / 10000))
+    : Math.max(0.01, safeBasePrice * (1 - SPREAD_BPS / 10000));
 
-  const priceInCents = Math.round(currentPrice * 100);
-  const oppPriceInCents = 100 - priceInCents;
+  const yesPriceInCents = Math.round(yesPrice * 100);
+  const noPriceInCents = Math.round(noPrice * 100);
   const shares = spreadPrice > 0 ? (validAmount / spreadPrice).toFixed(1) : "0.0";
   const potentialPayoutDollars = parseFloat(shares);
   const profitDollars = potentialPayoutDollars - validAmount;
@@ -166,7 +202,7 @@ export function BetModal({
       setStep('done');
       toastSuccess(
         '🎉 Order placed!',
-        `${shares} ${selectedOutcome} shares @ ${priceInCents}¢. Order ID: ${data.orderId?.slice(0, 8)}...`
+        `${shares} ${selectedOutcome} shares @ ${isYes ? yesPriceInCents : noPriceInCents}¢. Order ID: ${data.orderId?.slice(0, 8)}...`
       );
       setTimeout(() => { onClose(); setStep('idle'); }, 2000);
 
@@ -236,15 +272,19 @@ export function BetModal({
 
           {/* YES / NO */}
           <div className="grid grid-cols-2 gap-2">
-            <button className="cursor-pointer py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-1.5 transition-all"
+            <button 
+              onClick={() => setSelectedOutcome('YES')}
+              className="cursor-pointer py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-1.5 transition-all"
               style={isYes ? { backgroundColor: '#00D26A', borderColor: '#00D26A', color: '#000', boxShadow: '0 4px 18px rgba(0,210,106,0.35)' }
                           : { borderColor: 'rgba(255,255,255,0.08)', color: '#7A7068' }}>
-              <ArrowUpRight size={14} /> YES · {priceInCents}¢
+              <ArrowUpRight size={14} /> YES · {yesPriceInCents}¢
             </button>
-            <button className="cursor-pointer py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-1.5 transition-all"
+            <button 
+              onClick={() => setSelectedOutcome('NO')}
+              className="cursor-pointer py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-1.5 transition-all"
               style={!isYes ? { backgroundColor: '#FF4560', borderColor: '#FF4560', color: '#fff', boxShadow: '0 4px 18px rgba(255,69,96,0.35)' }
                            : { borderColor: 'rgba(255,255,255,0.08)', color: '#7A7068' }}>
-              <ArrowDownRight size={14} /> NO · {oppPriceInCents}¢
+              <ArrowDownRight size={14} /> NO · {noPriceInCents}¢
             </button>
           </div>
 
