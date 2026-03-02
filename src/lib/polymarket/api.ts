@@ -99,17 +99,16 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
     });
 
     // We still want a full dashboard. If African markets alone are too few, 
-    // we backfill with highly liquid global markets, but filter out overly US-centric content
+    // we backfill with highly liquid global markets, but filter out only US-centric politics and conflicts
     const avoidKeywords = [
         'trump', 'biden', 'kamala', 'harris', 'republican', 'democrat', 
         'senate', 'congress', 'california', 'new york', 'super bowl', 'nfl', 'nba',
         'fbi', 'cnn', 'fox', 'u.s.', 'united states',
-        'bitcoin', 'btc', 'eth ', 'ethereum', 'solana', 'doge', 'airdrop', 'nft',
         'israel', 'gaza', 'ukraine', 'putin'
     ];
     
-    // Target at least 50 markets for a good UX
-    const TARGET_MIN_MARKETS = 50;
+    // Target at least 100 markets for excellent coverage
+    const TARGET_MIN_MARKETS = 100;
     let fallbackMarkets: Market[] = [];
     
     if (strictAfrican.length < TARGET_MIN_MARKETS) {
