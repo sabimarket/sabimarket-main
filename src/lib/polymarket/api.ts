@@ -3,6 +3,7 @@ import { Market } from './types';
 const GAMMA_API_URL = 'https://gamma-api.polymarket.com';
 
 const AFRICAN_KEYWORDS = [
+    // Countries
     'africa', 'african', 'algeria', 'angola', 'benin', 'botswana', 'burkina faso', 'burundi', 
     'cabo verde', 'cape verde', 'cameroon', 'central african republic', 'chad', 'comoros', 
     'congo', "cote d'ivoire", 'ivory coast', 'djibouti', 'egypt', 'equatorial guinea', 
@@ -11,8 +12,32 @@ const AFRICAN_KEYWORDS = [
     'mauritania', 'mauritius', 'morocco', 'mozambique', 'namibia', 'niger', 'nigeria', 
     'rwanda', 'sao tome and principe', 'senegal', 'seychelles', 'sierra leone', 'somalia', 
     'south africa', 'south sudan', 'sudan', 'tanzania', 'togo', 'tunisia', 'uganda', 'zambia', 
-    'zimbabwe', 'afcon', 'ecowas', 'naira', 'cedi', 'rand', 'shilling', 'lagos', 'abuja', 
-    'nairobi', 'johannesburg', 'cairo', 'addis ababa', 'tinubu', 'ramaphosa', 'ruto'
+    'zimbabwe',
+    
+    // Major cities
+    'lagos', 'abuja', 'nairobi', 'johannesburg', 'cairo', 'addis ababa', 'kigali', 
+    'dar es salaam', 'kampala', 'lusaka', 'harare', 'maputo', 'luanda', 'dakar', 
+    'casablanca', 'tunis', 'accra', 'kinshasa', 'algiers', 'khartoum',
+    
+    // Current leaders & politicians
+    'tinubu', 'ramaphosa', 'ruto', 'akufo-addo', 'buhari', 'mnangagwa', 'kagame', 
+    'uhuru', 'kenyatta', 'sisi', 'tshisekedi', 'museveni', 'magufuli', 'macky sall',
+    
+    // Sports & culture
+    'afcon', 'african cup', 'can ', 'african champions league', 'nigerian premier league',
+    'big brother naija', 'bbnaija', 'african music', 'amapiano', 'afrobeats',
+    
+    // Organizations & regional
+    'ecowas', 'african union', 'au summit', 'east africa', 'west africa', 'maghreb', 
+    'francophone', 'anglophone', 'sahel', 'eac', 'sadc',
+    
+    // Economy & finance
+    'naira', 'cedi', 'rand', 'shilling', 'cfa franc', 'west african eco', 'kes', 'tzs', 
+    'ugx', 'zmw', 'mwk', 'african development bank', 'imf africa', 'world bank africa',
+    
+    // Tech & startups
+    'lagos tech', 'nairobi tech', 'african fintech', 'african startup', 'flutterwave', 
+    'paystack', 'jumia', 'kuda', 'opay', 'palmpay', 'andela', 'mpesa', 'm-pesa'
 ];
 
 /**
@@ -74,17 +99,17 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
     });
 
     // We still want a full dashboard. If African markets alone are too few, 
-    // we backfill with highly liquid global markets, but strictly filtering out
-    // US politics, crypto degenerates, and conflicts.
+    // we backfill with highly liquid global markets, but filter out overly US-centric content
     const avoidKeywords = [
-        'usa ', 'california', 'new york', 'super bowl', 'trump', 'biden', 'american', 'nfl', 'nba', 
-        'democrat', 'republican', 'senate', 'congress', 'united states', 'uk', 'london', 'china', 
-        'russia', 'taylor swift', 'harris', 'fed', 'fomc', 'kamala', 'u.s.', 'revenue', 'donna', 
-        'israel', 'gaza', 'ukraine', 'putin', 'fbi', 'cnn', 'fox', 'bitcoin', 'btc', 'eth ', 'ethereum', 'solana', 'doge'
+        'trump', 'biden', 'kamala', 'harris', 'republican', 'democrat', 
+        'senate', 'congress', 'california', 'new york', 'super bowl', 'nfl', 'nba',
+        'fbi', 'cnn', 'fox', 'u.s.', 'united states',
+        'bitcoin', 'btc', 'eth ', 'ethereum', 'solana', 'doge', 'airdrop', 'nft',
+        'israel', 'gaza', 'ukraine', 'putin'
     ];
     
-    // Target at least 24 markets for a good UX
-    const TARGET_MIN_MARKETS = 24;
+    // Target at least 50 markets for a good UX
+    const TARGET_MIN_MARKETS = 50;
     let fallbackMarkets: Market[] = [];
     
     if (strictAfrican.length < TARGET_MIN_MARKETS) {
