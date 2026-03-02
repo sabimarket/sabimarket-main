@@ -28,10 +28,19 @@ const KNOWN_LOCALES = LANGUAGES.map(l => l.code);
 export function LanguageSwitcher() {
   const locale = useLocale();
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const currentLang = LANGUAGES.find(l => l.code === locale) || LANGUAGES[0];
+
+  const handleToggle = () => {
+    if (!isOpen) {
+      // Detect at click time — always accurate, no SSR issue
+      setIsMobile(window.innerWidth < 640);
+    }
+    setIsOpen(v => !v);
+  };
 
   const handleSelect = (code: string) => {
     if (code === locale) { setIsOpen(false); return; }
@@ -90,7 +99,7 @@ export function LanguageSwitcher() {
       <div ref={wrapperRef} className="relative">
         {/* ── Single trigger button (always visible) ── */}
         <button
-          onClick={() => setIsOpen(v => !v)}
+          onClick={handleToggle}
           disabled={loading}
           className="cursor-pointer flex items-center gap-1.5 px-2.5 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg text-[13px] text-[#ccc] hover:text-white transition-all disabled:opacity-60"
         >
@@ -103,8 +112,8 @@ export function LanguageSwitcher() {
         </button>
 
         {/* ── Desktop dropdown (sm+) ── */}
-        {isOpen && (
-          <div className="hidden sm:block absolute right-0 top-full mt-2 w-64 bg-[#0F0D0B] border border-white/[0.09] rounded-xl shadow-2xl z-[999] overflow-hidden">
+        {isOpen && !isMobile && (
+          <div className="absolute right-0 top-full mt-2 w-64 bg-[#0F0D0B] border border-white/[0.09] rounded-xl shadow-2xl z-[999] overflow-hidden">
             <div className="px-3 py-2 border-b border-white/[0.06]">
               <p className="text-[10px] font-semibold text-[#7A7068] uppercase tracking-widest">Language</p>
             </div>
@@ -116,8 +125,8 @@ export function LanguageSwitcher() {
       </div>
 
       {/* ── Mobile full-screen bottom sheet (below sm) ── */}
-      {isOpen && (
-        <div className="sm:hidden fixed inset-0 z-[999] flex flex-col justify-end">
+      {isOpen && isMobile && (
+        <div className="fixed inset-0 z-[999] flex flex-col justify-end">
           {/* Scrim */}
           <div
             className="absolute inset-0 bg-black/75 backdrop-blur-sm"
