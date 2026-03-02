@@ -2,12 +2,20 @@
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Market } from '@/lib/polymarket/types';
-import { Share2, BookmarkPlus, ExternalLink, TrendingUp, Clock, X, Zap } from 'lucide-react';
+import { Share2, BookmarkPlus, ExternalLink, TrendingUp, Clock, X, Zap, Wallet } from 'lucide-react';
 import { useMarketStore } from "@/store/marketStore";
 import MarketChart from './MarketChart';
 import CommentSection from './CommentSection';
+import { useToast } from './Toast';
+import { useAccount, useReadContract } from 'wagmi';
+import { formatUnits } from 'viem';
 
 import { useState } from 'react';
+
+const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+const USDC_ABI = [
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
+] as const;
 
 export function MarketDetailModal({
   isOpen,
@@ -21,9 +29,27 @@ export function MarketDetailModal({
   onBet?: (outcome: string, price: number) => void;
 }) {
   const { livePrices } = useMarketStore();
+  const { address } = useAccount();
+  const { error: toastError, warning: toastWarning } = useToast();
+
   const [selectedOutcome, setSelectedOutcome] = useState<string>("YES");
+  const [orderAmount, setOrderAmount] = useState<number | string>(10);
+
+  // Read USDC balance
+  const { data: usdcBalance } = useReadContract({
+    address: USDC_ADDRESS,
+    abi: USDC_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+  });
 
   if (!market) return null;
+
+  const usdcBalanceFormatted = usdcBalance
+    ? parseFloat(formatUnits(usdcBalance as bigint, 6)).toFixed(2)
+    : null;
+  const validAmount = typeof orderAmount === 'string' && orderAmount === '' ? 0 : Number(orderAmount);
+  const hasEnoughUsdc = usdcBalance ? Number(formatUnits(usdcBalance as bigint, 6)) >= validAmount : true;
 
   const outcomes = market.outcomes || ["Yes", "No"];
   const outcomePrices = market.outcomePrices || ["0.5", "0.5"];
@@ -151,13 +177,7 @@ export function MarketDetailModal({
                         </div>
                         <span className="font-bold font-mono text-white w-10 text-right text-[14px]">{pctDisplay}%</span>
                         <button 
-                          onClick={() => {
-                            setSelectedOutcome(name);
-                            if (onBet) {
-                              onBet(name, price);
-                              onClose();
-                            }
-                          }}
+                          onClick={() => setSelectedOutcome(name)}
                           className="cursor-pointer px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all border bg-white/[0.05] border-white/[0.1] hover:bg-white/[0.1] text-white">
                           {(price * 100).toFixed(1)}¢
                         </button>
@@ -224,24 +244,98 @@ export function MarketDetailModal({
                   })}
                 </div>
 
-                <p className="text-[10px] text-[#7A7068] text-center flex items-center justify-center gap-1.5 mb-3">
-                  <Zap size={10} className="text-[#00D26A]" /> Routed via Polymarket CLOB
-                </p>
+                {/* Amount input */}
+                <div className="mt-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[10px] font-semibold text-[#7A7068] uppercase tracking-widest">Amount (USDC)</p>
+                    {usdcBalanceFormatted && (
+                      <span className={`text-[10px] font-mono font-bold ${hasEnoughUsdc ? 'text-[#00D26A]' : 'text-[#FF4560]'}`}>
+                        Bal: ${usdcBalanceFormatted}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative mb-2">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7A7068] text-sm pointer-events-none">$</span>
+                    <input
+                      type="number" value={orderAmount}
+                      onChange={e => setOrderAmount(e.target.value)}
+                      inputMode="decimal"
+                      className={`w-full bg-white/[0.05] border rounded-xl py-2.5 pl-8 pr-4 text-white font-mono font-bold text-[15px] focus:outline-none focus:ring-1 transition-all ${
+                        !hasEnoughUsdc ? 'border-[#FF4560]/40' : 'border-white/[0.08] focus:ring-[#00D26A]/40'
+                      }`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[10, 25, 50, 100].map(p => (
+                      <button key={p} onClick={() => setOrderAmount(p)}
+                        className={`cursor-pointer py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                          validAmount === p
+                            ? 'bg-white/[0.12] text-white border-white/[0.2]'
+                            : 'border-white/[0.07] bg-white/[0.04] text-[#7A7068] hover:text-white hover:bg-white/[0.09]'
+                        }`}>
+                        ${p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                <button 
-                  onClick={() => {
-                    if (onBet) {
-                      const selectedIndex = outcomes.indexOf(selectedOutcome);
-                      const tId = market.tokens?.[selectedIndex]?.token_id;
-                      const price = tId && livePrices[tId] !== undefined ? livePrices[tId] : parseFloat(outcomePrices[selectedIndex] || "0.5");
-                      onBet(selectedOutcome, price);
-                      onClose();
-                    }
-                  }}
-                  className="cursor-pointer w-full py-3.5 rounded-xl font-bold text-[14px] text-black transition-all active:scale-[0.98]"
-                  style={{ background: 'linear-gradient(135deg, #00D26A, #009A4E)', boxShadow: '0 4px 22px rgba(0,210,106,0.3)' }}>
-                  Continue to Order →
-                </button>
+                {/* Order summary */}
+                {(() => {
+                  const selIdx = outcomes.indexOf(selectedOutcome) >= 0 ? outcomes.indexOf(selectedOutcome) : 0;
+                  const selTid = market.tokens?.[selIdx]?.token_id;
+                  const selPrice = selTid && livePrices[selTid] !== undefined ? livePrices[selTid] : parseFloat(outcomePrices[selIdx] || '0.5');
+                  const boundedPrice = Math.max(0.01, Math.min(0.99, selPrice));
+                  const shares = boundedPrice > 0 ? (validAmount / boundedPrice).toFixed(1) : '0.0';
+                  const profit = parseFloat(shares) - validAmount;
+                  const roi = validAmount > 0 ? ((profit / validAmount) * 100).toFixed(0) : '0';
+                  const getColor = (idx: number) => {
+                    if (outcomes.length === 2) return idx === 0 ? '#00D26A' : '#FF4560';
+                    if (idx === 0) return '#00D26A';
+                    if (idx === outcomes.length - 1) return '#FF4560';
+                    return '#3B82F6';
+                  };
+                  const accentClr = getColor(selIdx);
+                  return (
+                    <>
+                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05]">
+                        <div className="flex justify-between items-center px-3 py-2 text-[11px]">
+                          <span className="text-[#7A7068]">Shares</span>
+                          <span className="font-mono font-bold text-white">{shares}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-3 py-2 text-[11px]">
+                          <span className="text-[#7A7068]">Price</span>
+                          <span className="font-mono font-bold text-white">{(boundedPrice * 100).toFixed(1)}¢</span>
+                        </div>
+                        <div className="flex justify-between items-center px-3 py-2 text-[11px]">
+                          <span className="text-[#7A7068]">Return if win</span>
+                          <span className="font-mono font-bold" style={{ color: accentClr }}>+${profit.toFixed(2)} ({roi}%)</span>
+                        </div>
+                      </div>
+
+                      {!address ? (
+                        <button
+                          onClick={() => toastError('Wallet required', 'Connect your wallet to place an order')}
+                          className="cursor-pointer w-full py-3.5 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 bg-white/[0.06] border border-white/[0.1] text-[#7A7068] hover:text-white hover:bg-white/[0.1] transition-all">
+                          <Wallet size={15} /> Connect Wallet to Trade
+                        </button>
+                      ) : (
+                        <button
+                          disabled={validAmount <= 0 || !hasEnoughUsdc}
+                          onClick={() => {
+                            const tid = market.tokens?.[selIdx]?.token_id;
+                            if (!tid) { toastError('Market error', 'No token ID found for this outcome'); return; }
+                            if (validAmount <= 0) { toastWarning('Invalid amount', 'Enter an amount greater than 0'); return; }
+                            if (!hasEnoughUsdc) { toastError('Insufficient USDC', `You need $${validAmount} USDC`); return; }
+                            if (onBet) { onBet(selectedOutcome, boundedPrice); onClose(); }
+                          }}
+                          className="cursor-pointer w-full py-3.5 rounded-xl font-bold text-[14px] transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          style={{ backgroundColor: accentClr, color: accentClr === '#00D26A' ? '#000' : '#fff', boxShadow: `0 4px 22px ${accentClr}45` }}>
+                          Buy {selectedOutcome} · {(boundedPrice * 100).toFixed(1)}¢
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {/* Links row */}
                 <div className="flex items-center justify-center gap-3 mt-4">

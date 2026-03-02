@@ -7,6 +7,7 @@ import { MarketList } from './MarketList';
 import { BetModal } from './BetModal';
 import { MarketDetailModal } from './MarketDetailModal';
 import { useAccount } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   Activity, Clock, TrendingUp, DollarSign, BarChart2,
   Award, Wallet, Globe, Loader2, Search, X
@@ -36,6 +37,7 @@ export function FeedAndPortfolio({ heroMarket, feedMarkets, heroYesPrice }: Prop
   const [stats, setStats] = useState<PortfolioStats | null>(null);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const { address } = useAccount();
+  const { openConnectModal } = useConnectModal();
 
   // Hero modal states
   const [isHeroBetOpen, setHeroBetOpen] = useState(false);
@@ -99,6 +101,38 @@ export function FeedAndPortfolio({ heroMarket, feedMarkets, heroYesPrice }: Prop
       {activeTab === 'portfolio' && (
         <div className="w-full flex flex-col fade-in">
 
+          {/* ── Auth gate ── */}
+          {!address ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center mb-6">
+                <Wallet size={28} className="text-[#7A7068]" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h3>
+              <p className="text-sm text-[#7A7068] max-w-xs mb-6">See your real on-chain positions, P&amp;L, and trading history from Polymarket</p>
+              <div className="flex flex-col gap-3 items-center">
+                <button
+                  onClick={() => openConnectModal?.()}
+                  className="cursor-pointer bg-[#00D26A] text-black px-8 py-3 rounded-xl font-bold text-sm hover:bg-[#00B85E] transition-colors flex items-center gap-2"
+                >
+                  <Wallet size={16} /> Connect Wallet
+                </button>
+                <button onClick={() => setActiveTab('markets')} className="cursor-pointer text-xs text-[#7A7068] hover:text-white transition-colors">
+                  Browse markets instead →
+                </button>
+              </div>
+
+              {/* Ghost stats (blurred teaser) */}
+              <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-xl opacity-30 pointer-events-none select-none blur-[2px]">
+                {['Portfolio Value', 'Total P&L', 'Win Rate', 'Positions'].map(label => (
+                  <div key={label} className="bg-[#0F0D0B] border border-white/[0.07] rounded-xl p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-[#7A7068] uppercase tracking-wider font-medium">{label}</span>
+                    <span className="text-xl font-bold font-mono text-white">—</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Stats Bar */}
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 mb-8">
@@ -136,10 +170,7 @@ export function FeedAndPortfolio({ heroMarket, feedMarkets, heroYesPrice }: Prop
             </button>
           </div>
 
-          {!address ? (
-            <EmptyState icon={Wallet} title="Connect Your Wallet"
-              desc="Connect your wallet to view real positions from the Polymarket blockchain." />
-          ) : loadingPortfolio ? (
+          {loadingPortfolio ? (
             <div className="flex flex-col items-center justify-center py-24 text-[#7A7068]">
               <Loader2 size={32} className="animate-spin mb-4" />
               <p className="text-sm">Fetching positions from Polygon…</p>
@@ -192,6 +223,8 @@ export function FeedAndPortfolio({ heroMarket, feedMarkets, heroYesPrice }: Prop
                 </div>
               ))}
             </div>
+          )}
+            </>
           )}
         </div>
       )}

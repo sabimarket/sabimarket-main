@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
-import { ThumbsUp, ThumbsDown, MessageCircle, Send, Loader2 } from 'lucide-react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { ThumbsUp, ThumbsDown, MessageCircle, Send, Loader2, Wallet } from 'lucide-react';
 import { useToast } from './Toast';
 
 interface User {
@@ -243,6 +244,7 @@ function CommentThread({ comment, marketId, onReply }: { comment: Comment; marke
 
 export default function CommentSection({ marketId }: CommentSectionProps) {
   const { address } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const { success: toastSuccess, error: toastError } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -315,33 +317,50 @@ export default function CommentSection({ marketId }: CommentSectionProps) {
 
       {/* Comment input */}
       <div className="mb-6">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder={address ? "Share your thoughts..." : "Connect wallet to comment..."}
-            disabled={!address}
-            className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-lg px-4 py-3 text-sm text-white placeholder:text-[#7A7068] focus:outline-none focus:ring-1 focus:ring-[#00D26A] disabled:opacity-50"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !isSubmitting && address) handleCommentSubmit();
-            }}
-          />
-          <button
-            onClick={handleCommentSubmit}
-            disabled={isSubmitting || !commentText.trim() || !address}
-            className="bg-[#00D26A] text-black px-4 py-3 rounded-lg font-semibold text-sm hover:bg-[#00D26A]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSubmitting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <>
-                <Send size={16} />
-                Post
-              </>
-            )}
-          </button>
-        </div>
+        {!address ? (
+          <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-6 text-center flex flex-col items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center">
+              <Wallet size={18} className="text-[#7A7068]" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white mb-1">Join the Discussion</p>
+              <p className="text-xs text-[#7A7068]">Connect your wallet to share your thoughts and engage with other traders</p>
+            </div>
+            <button
+              onClick={() => openConnectModal?.()}
+              className="cursor-pointer bg-[#00D26A] text-black px-5 py-2 rounded-lg text-sm font-bold hover:bg-[#00B85E] transition-colors"
+            >
+              Connect Wallet
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Share your thoughts..."
+              className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-lg px-4 py-3 text-sm text-white placeholder:text-[#7A7068] focus:outline-none focus:ring-1 focus:ring-[#00D26A]"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !isSubmitting) handleCommentSubmit();
+              }}
+            />
+            <button
+              onClick={handleCommentSubmit}
+              disabled={isSubmitting || !commentText.trim()}
+              className="cursor-pointer bg-[#00D26A] text-black px-4 py-3 rounded-lg font-semibold text-sm hover:bg-[#00D26A]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  <Send size={16} />
+                  Post
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Comments list */}
