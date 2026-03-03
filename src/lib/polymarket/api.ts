@@ -15,32 +15,39 @@ const AFRICAN_KEYWORDS = [
     'mauritania', 'mauritius', 'morocco', 'mozambique', 'namibia', 'niger', 'nigeria', 
     'rwanda', 'sao tome and principe', 'senegal', 'seychelles', 'sierra leone', 'somalia', 
     'south africa', 'south sudan', 'sudan', 'tanzania', 'togo', 'tunisia', 'uganda', 'zambia', 
-    'zimbabwe',
+    'zimbabwe', 'nigerian', 'kenyan', 'ghanaian', 'ethiopian', 'south african', 'egyptian',
     
     // Major cities
-    'lagos', 'abuja', 'nairobi', 'johannesburg', 'cairo', 'addis ababa', 'kigali', 
-    'dar es salaam', 'kampala', 'lusaka', 'harare', 'maputo', 'luanda', 'dakar', 
-    'casablanca', 'tunis', 'accra', 'kinshasa', 'algiers', 'khartoum',
+    'lagos', 'abuja', 'nairobi', 'johannesburg', 'pretoria', 'cape town', 'durban', 'cairo', 
+    'addis ababa', 'kigali', 'dar es salaam', 'kampala', 'lusaka', 'harare', 'maputo', 'luanda', 
+    'dakar', 'casablanca', 'tunis', 'accra', 'kumasi', 'kinshasa', 'algiers', 'khartoum',
     
     // Current leaders & politicians
-    'tinubu', 'ramaphosa', 'ruto', 'akufo-addo', 'tinubu', 'mnangagwa', 'kagame', 
-    'uhuru', 'kenyatta', 'sisi', 'tshisekedi', 'museveni', 'magufuli', 'macky sall',
+    'tinubu', 'buhari', 'ramaphosa', 'cyril', 'ruto', 'william ruto', 'akufo-addo', 'akuffo', 
+    'nana addo', 'mnangagwa', 'emmerson', 'kagame', 'paul kagame', 'uhuru', 'kenyatta', 
+    'sisi', 'el-sisi', 'abdel fattah', 'tshisekedi', 'felix', 'museveni', 'yoweri', 
+    'magufuli', 'samia', 'macky sall', 'faye', 'bassirou',
     
     // Sports & culture
-    'afcon', 'african cup', 'can ', 'african champions league', 'nigerian premier league',
-    'big brother naija', 'bbnaija', 'african music', 'amapiano', 'afrobeats',
+    'afcon', 'africa cup', 'african cup', 'can 202', 'caf', 'african champions league', 
+    'nigerian premier', 'npfl', 'kenyan premier', 'south african premier',
+    'big brother naija', 'bbnaija', 'bbn', 'african music', 'amapiano', 'afrobeats', 
+    'afrobeat', 'burna boy', 'wizkid', 'davido', 'tiwa savage', 'yemi alade',
     
     // Organizations & regional
-    'ecowas', 'african union', 'au summit', 'east africa', 'west africa', 'maghreb', 
-    'francophone', 'anglophone', 'sahel', 'eac', 'sadc',
+    'ecowas', 'african union', 'au summit', 'east africa', 'east african', 'west africa', 
+    'west african', 'north africa', 'maghreb', 'francophone africa', 'anglophone', 
+    'sahel', 'eac', 'sadc', 'southern africa',
     
     // Economy & finance
-    'naira', 'cedi', 'rand', 'shilling', 'cfa franc', 'west african eco', 'kes', 'tzs', 
-    'ugx', 'zmw', 'mwk', 'african development bank', 'imf africa', 'world bank africa',
+    'naira', 'ngn', 'cedi', 'ghs', 'rand', 'zar', 'shilling', 'kes', 'cfa franc', 
+   'west african eco', 'tzs', 'ugx', 'zmw', 'mwk', 'african development bank', 
+    'adb', 'imf africa', 'world bank africa',
     
     // Tech & startups
     'lagos tech', 'nairobi tech', 'african fintech', 'african startup', 'flutterwave', 
-    'paystack', 'jumia', 'kuda', 'opay', 'palmpay', 'andela', 'mpesa', 'm-pesa'
+    'paystack', 'jumia', 'kuda', 'opay', 'palmpay', 'andela', 'mpesa', 'm-pesa', 
+    'африка'
 ];
 
 /**
@@ -169,16 +176,14 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
         return AFRICAN_KEYWORDS.some((keyword) => questionText.includes(keyword));
     });
 
-    // Filter out US-centric politics and conflicts for fallback markets
+    // Filter out overly US-centric politics for fallback markets
     const avoidKeywords = [
-        'trump', 'biden', 'kamala', 'harris', 'republican', 'democrat', 
-        'senate', 'congress', 'california', 'new york', 'super bowl', 'nfl', 'nba',
-        'fbi', 'cnn', 'fox', 'u.s.', 'united states',
-        'israel', 'gaza', 'ukraine', 'putin'
+        'congress', 'california', 'new york', 'texas', 'florida',
+        'fbi', 'cia', 'u.s. treasury', 'mar-a-lago'
     ];
     
-    // Target at least 100 markets for excellent coverage
-    const TARGET_MIN_MARKETS = 100;
+    // Target at least 80 markets for good coverage
+    const TARGET_MIN_MARKETS = 80;
     let fallbackMarkets: Market[] = [];
     
     if (strictAfrican.length < TARGET_MIN_MARKETS) {
