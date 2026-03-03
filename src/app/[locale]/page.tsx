@@ -48,9 +48,9 @@ export default async function HomePage() {
           {/* Logo */}
           <a href="/" className="flex items-center gap-2 shrink-0">
             <img src="/sabimarket-logo.png" alt="SabiMarket" className="w-8 h-8 shrink-0" />
-            <span className="text-[15px] font-bold text-white tracking-tight hidden sm:inline">
+            {/* <span className="text-[15px] font-bold text-white tracking-tight hidden sm:inline">
               Sabi<span className="text-[#00D26A]">Markets</span>
-            </span>
+            </span> */}
             <span className="text-[9px] font-bold text-[#7A7068] bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded-full uppercase tracking-widest hidden md:inline">
               Africa
             </span>
