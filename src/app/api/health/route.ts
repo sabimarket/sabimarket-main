@@ -14,13 +14,10 @@ export async function GET() {
       database: !!process.env.DATABASE_URL,
       walletConnect: !!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
       polygonRpc: !!process.env.POLYGON_RPC_URL || !!process.env.NEXT_PUBLIC_POLYGON_RPC_URL,
+      polymarketApiAccess: false, // will be updated below
     },
-    status: 'ok',
+    status: 'ok' as 'ok' | 'degraded',
   };
-
-  // Overall health
-  const allOk = Object.values(checks.checks).every(v => v === true);
-  checks.status = allOk ? 'ok' : 'degraded';
 
   // Test Polymarket API connection (without exposing keys)
   if (checks.checks.polymarketApiKey) {
@@ -33,6 +30,10 @@ export async function GET() {
       checks.checks.polymarketApiAccess = false;
     }
   }
+
+  // Overall health
+  const allOk = Object.values(checks.checks).every(v => v === true);
+  checks.status = allOk ? 'ok' : 'degraded';
 
   return NextResponse.json(checks);
 }
