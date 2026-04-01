@@ -2,9 +2,11 @@ import { Market } from './types';
 import { createPublicClient, http, formatUnits } from 'viem';
 import { flowTestnet, CONTRACTS, FACTORY_ABI, MARKET_ABI } from '@/lib/contracts';
 
+const RPC_URL = 'https://testnet.evm.nodes.onflow.org';
+
 const client = createPublicClient({
   chain: flowTestnet,
-  transport: http(),
+  transport: http(RPC_URL, { retryCount: 4, retryDelay: 600 }),
 });
 
 function assignCategory(category: string, question: string): string {

@@ -25,16 +25,17 @@ export function BetModal({
 
   const { writeContractAsync } = useWriteContract();
 
-  // Read USDC balance on Flow EVM
+  // Read USDC balance on Flow EVM — no polling to avoid flooding the rate-limited RPC
   const { data: usdcBalance } = useReadContract({
     address: CONTRACTS.USDC,
     abi: USDC_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     chainId: flowTestnet.id,
+    query: { refetchInterval: false, staleTime: 30_000 },
   });
 
-  // Read USDC allowance for the market contract
+  // Read USDC allowance for the market contract — no polling
   const marketAddress = market?.id as `0x${string}` | undefined;
   const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
     address: CONTRACTS.USDC,
@@ -42,6 +43,7 @@ export function BetModal({
     functionName: 'allowance',
     args: address && marketAddress ? [address, marketAddress] : undefined,
     chainId: flowTestnet.id,
+    query: { refetchInterval: false, staleTime: 30_000 },
   });
 
   // Sync outcome when modal opens with new selection

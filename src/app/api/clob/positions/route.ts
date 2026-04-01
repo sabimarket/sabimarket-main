@@ -6,9 +6,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, getAddress } from 'viem';
 import { CONTRACTS, FACTORY_ABI, MARKET_ABI, flowTestnet } from '@/lib/contracts';
 
+const RPC_URL = 'https://testnet.evm.nodes.onflow.org';
+
 const client = createPublicClient({
   chain: flowTestnet,
-  transport: http(),
+  transport: http(RPC_URL, { retryCount: 4, retryDelay: 600 }),
 });
 
 export async function GET(req: NextRequest) {
