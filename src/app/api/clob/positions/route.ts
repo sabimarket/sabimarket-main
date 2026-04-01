@@ -33,75 +33,76 @@ export async function GET(req: NextRequest) {
 
     const enriched: any[] = [];
 
-    // Batch all per-market reads into a single multicall RPC request
-    const calls = markets.flatMap((marketAddr) => [
-      { address: marketAddr, abi: MARKET_ABI, functionName: 'getUserPosition' as const, args: [userAddr] as [`0x${string}`] },
-      { address: marketAddr, abi: MARKET_ABI, functionName: 'getMarketInfo' as const },
-      { address: marketAddr, abi: MARKET_ABI, functionName: 'getYesPrice' as const },
-    ]);
+    // Process 8 markets at a time — keeps concurrent RPC calls under rate limit
+    for (let i = 0; i < markets.length; i += 8) {
+      const batch = markets.slice(i, i + 8);
+      await Promise.all(
+        batch.map(async (marketAddr) => {
+          try {
+            const [position, info, yesPrice] = await Promise.all([
+              client.readContract({
+                address: marketAddr,
+                abi: MARKET_ABI,
+                functionName: 'getUserPosition',
+                args: [userAddr],
+              }) as Promise<[bigint, bigint, boolean]>,
+              client.readContract({
+                address: marketAddr,
+                abi: MARKET_ABI,
+                functionName: 'getMarketInfo',
+              }) as Promise<[string, string, string, bigint, bigint, bigint, bigint, boolean, number, bigint]>,
+              client.readContract({
+                address: marketAddr,
+                abi: MARKET_ABI,
+                functionName: 'getYesPrice',
+              }) as Promise<bigint>,
+            ]);
 
-    const results = await client.multicall({ contracts: calls, allowFailure: true });
+            const [yesShares, noShares] = position;
+            if (yesShares === 0n && noShares === 0n) return;
 
-    for (let idx = 0; idx < markets.length; idx++) {
-      const marketAddr = markets[idx];
-      try {
-        const posResult    = results[idx * 3];
-        const infoResult   = results[idx * 3 + 1];
-        const priceResult  = results[idx * 3 + 2];
+            const question = info[0];
+            const currentYesPrice = Number(yesPrice) / 1e6;
+            const currentNoPrice = 1 - currentYesPrice;
 
-        if (posResult.status === 'failure' || infoResult.status === 'failure') continue;
+            if (yesShares > 0n) {
+              const shares = Number(yesShares) / 1e6;
+              enriched.push({
+                id: marketAddr + '-YES',
+                marketTitle: question,
+                outcome: 'YES',
+                shares,
+                avgPrice: currentYesPrice,
+                currentPrice: currentYesPrice,
+                totalCost: shares * currentYesPrice,
+                currentValue: shares * currentYesPrice,
+                pnl: 0,
+                pnlPct: 0,
+                tokenId: marketAddr,
+              });
+            }
 
-        const position = posResult.result  as [bigint, bigint, boolean];
-        const info     = infoResult.result as [string, string, string, bigint, bigint, bigint, bigint, boolean, number, bigint];
-        const yesPrice = priceResult.status === 'success' ? priceResult.result as bigint : BigInt(500000);
-
-        const [yesShares, noShares] = position;
-          if (yesShares === 0n && noShares === 0n) continue;
-
-          const question = info[0];
-          const currentYesPrice = Number(yesPrice) / 1e6;
-          const currentNoPrice = 1 - currentYesPrice;
-
-          if (yesShares > 0n) {
-            const shares = Number(yesShares) / 1e6;
-            const avgPrice = currentYesPrice;
-            const currentValue = shares * currentYesPrice;
-            enriched.push({
-              id: marketAddr + '-YES',
-              marketTitle: question,
-              outcome: 'YES',
-              shares,
-              avgPrice,
-              currentPrice: currentYesPrice,
-              totalCost: shares * avgPrice,
-              currentValue,
-              pnl: 0,
-              pnlPct: 0,
-              tokenId: marketAddr,
-            });
+            if (noShares > 0n) {
+              const shares = Number(noShares) / 1e6;
+              enriched.push({
+                id: marketAddr + '-NO',
+                marketTitle: question,
+                outcome: 'NO',
+                shares,
+                avgPrice: currentNoPrice,
+                currentPrice: currentNoPrice,
+                totalCost: shares * currentNoPrice,
+                currentValue: shares * currentNoPrice,
+                pnl: 0,
+                pnlPct: 0,
+                tokenId: marketAddr,
+              });
+            }
+          } catch {
+            // skip markets that fail
           }
-
-          if (noShares > 0n) {
-            const shares = Number(noShares) / 1e6;
-            const avgPrice = currentNoPrice;
-            const currentValue = shares * currentNoPrice;
-            enriched.push({
-              id: marketAddr + '-NO',
-              marketTitle: question,
-              outcome: 'NO',
-              shares,
-              avgPrice,
-              currentPrice: currentNoPrice,
-              totalCost: shares * avgPrice,
-              currentValue,
-              pnl: 0,
-              pnlPct: 0,
-              tokenId: marketAddr,
-            });
-          }
-      } catch {
-        // skip markets that fail
-      }
+        })
+      );
     }
 
     const totalValue = enriched.reduce((s: number, p: any) => s + p.currentValue, 0);

@@ -56,13 +56,52 @@ function parseMarket(
 }
 
 /**
+ * Process items in sequential batches to avoid hitting RPC rate limits.
+ * Flow EVM Testnet allows ~40 req/s; each market needs 3 calls, so batches
+ * of 8 markets = 24 concurrent calls, safely under the limit.
+ */
+async function batchMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+/**
+ * Read a single market's data from its on-chain contract.
+ */
+async function readMarket(address: `0x${string}`): Promise<Market | null> {
+  try {
+    const [info, yesPrice, noPrice] = await Promise.all([
+      client.readContract({ address, abi: MARKET_ABI, functionName: 'getMarketInfo' }),
+      client.readContract({ address, abi: MARKET_ABI, functionName: 'getYesPrice' }),
+      client.readContract({ address, abi: MARKET_ABI, functionName: 'getNoPrice' }),
+    ]);
+    return parseMarket(
+      address,
+      info as readonly [string, string, string, bigint, bigint, bigint, bigint, boolean, number, bigint],
+      yesPrice as bigint,
+      noPrice as bigint,
+    );
+  } catch (err) {
+    console.error(`Failed to read market ${address}:`, err);
+    return null;
+  }
+}
+
+/**
  * Fetch all markets from the SabiMarketFactory on Flow EVM Testnet.
- * Uses multicall to batch all contract reads into a single RPC request,
- * avoiding rate-limit (429) errors from firing 33+ calls in parallel.
+ * Uses sequential batches of 8 to avoid exceeding the 40 req/s rate limit.
  */
 export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: string })[]> {
   try {
-    // 1 RPC call — get total count
     const count = await client.readContract({
       address: CONTRACTS.FACTORY,
       abi: FACTORY_ABI,
@@ -72,7 +111,6 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
     const total = Number(count);
     if (total === 0) return [];
 
-    // 1 RPC call — get all addresses at once
     const allAddresses = await client.readContract({
       address: CONTRACTS.FACTORY,
       abi: FACTORY_ABI,
@@ -80,35 +118,11 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
       args: [BigInt(0), BigInt(total)],
     }) as readonly `0x${string}`[];
 
-    // 1 RPC call — multicall batches getMarketInfo + getYesPrice + getNoPrice
-    // for ALL markets into a single eth_call via Multicall3
-    const calls = allAddresses.flatMap((address) => [
-      { address, abi: MARKET_ABI, functionName: 'getMarketInfo' as const },
-      { address, abi: MARKET_ABI, functionName: 'getYesPrice' as const },
-      { address, abi: MARKET_ABI, functionName: 'getNoPrice' as const },
-    ]);
-
-    const results = await client.multicall({ contracts: calls, allowFailure: true });
-
-    const markets: Market[] = [];
-    for (let i = 0; i < allAddresses.length; i++) {
-      const infoResult = results[i * 3];
-      const yesPriceResult = results[i * 3 + 1];
-      const noPriceResult = results[i * 3 + 2];
-
-      if (infoResult.status === 'failure') {
-        console.error(`Failed to read market ${allAddresses[i]}`);
-        continue;
-      }
-
-      const info = infoResult.result as readonly [string, string, string, bigint, bigint, bigint, bigint, boolean, number, bigint];
-      const yesPrice = yesPriceResult.status === 'success' ? yesPriceResult.result as bigint : BigInt(500000);
-      const noPrice = noPriceResult.status === 'success' ? noPriceResult.result as bigint : BigInt(500000);
-
-      markets.push(parseMarket(allAddresses[i], info, yesPrice, noPrice));
-    }
+    // Process 8 markets at a time — 8 × 3 calls = 24 concurrent, safely under 40/s
+    const markets = await batchMap([...allAddresses], 8, (addr) => readMarket(addr));
 
     return markets
+      .filter((m): m is Market => m !== null)
       .sort((a, b) => parseFloat(b.volume) - parseFloat(a.volume))
       .map(m => ({ ...m, uiCategory: assignCategory(m.category, m.question) }));
   } catch (error) {
@@ -119,30 +133,8 @@ export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: str
 
 /**
  * Get a single market by its contract address.
- * Uses multicall to batch all 3 reads into a single RPC call.
  */
 export async function getMarket(address: string): Promise<Market | null> {
-  try {
-    const addr = address as `0x${string}`;
-    const results = await client.multicall({
-      contracts: [
-        { address: addr, abi: MARKET_ABI, functionName: 'getMarketInfo' },
-        { address: addr, abi: MARKET_ABI, functionName: 'getYesPrice' },
-        { address: addr, abi: MARKET_ABI, functionName: 'getNoPrice' },
-      ],
-      allowFailure: true,
-    });
-
-    if (results[0].status === 'failure') return null;
-
-    const info = results[0].result as readonly [string, string, string, bigint, bigint, bigint, bigint, boolean, number, bigint];
-    const yesPrice = results[1].status === 'success' ? results[1].result as bigint : BigInt(500000);
-    const noPrice = results[2].status === 'success' ? results[2].result as bigint : BigInt(500000);
-
-    return parseMarket(addr, info, yesPrice, noPrice);
-  } catch (err) {
-    console.error(`Failed to read market ${address}:`, err);
-    return null;
-  }
+  return readMarket(address as `0x${string}`);
 }
 
