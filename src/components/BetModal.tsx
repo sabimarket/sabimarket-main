@@ -121,6 +121,7 @@ export function BetModal({
           functionName: 'approve',
           args: [marketAddress, amountWei],
           chainId: flowTestnet.id,
+          gas: BigInt(80_000),
         });
 
         // Wait briefly for approval to process
@@ -138,6 +139,7 @@ export function BetModal({
         functionName: 'buyShares',
         args: [isYes, amountWei],
         chainId: flowTestnet.id,
+        gas: BigInt(300_000),
       });
 
       setStep('done');
