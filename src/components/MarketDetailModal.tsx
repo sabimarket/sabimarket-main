@@ -42,13 +42,14 @@ export function MarketDetailModal({
     }
   }, [isOpen, market?.condition_id]);
 
-  // Read USDC balance on Flow EVM
+  // Read USDC balance on Flow EVM — no polling to avoid rate limit
   const { data: usdcBalance } = useReadContract({
     address: CONTRACTS.USDC,
     abi: USDC_ABI_LOCAL,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     chainId: flowTestnet.id,
+    query: { refetchInterval: false, staleTime: 30_000 },
   });
 
   if (!market) return null;
