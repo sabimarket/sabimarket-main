@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
  * Internal endpoint: list expired, unresolved markets
  * Called by the market-expiry BullMQ worker
  * Protected by x-cron-secret header
+ *
+ * Markets are tracked via the MarketCuration table (conditionId = Soroban market address).
+ * We cross-reference against Order activity to find active markets we know about.
+ * The worker will then check on-chain state for each.
  */
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret");
@@ -13,21 +17,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const now = new Date();
-
-    // Fetch markets whose resolution deadline has passed and are still unresolved
-    // Prisma model: Market { id, question, description, endTime, status, ... }
-    const markets = await prisma.market.findMany({
-      where: {
-        endTime: { lte: now },
-        status: "ACTIVE", // still active = needs resolution
-      },
+    // Return all active curated markets — the worker checks Soroban for expiry state
+    const markets = await prisma.marketCuration.findMany({
+      where: { isActive: true },
       select: {
-        id: true,
-        question: true,
-        description: true,
-        endTime: true,
-        evidenceUri: true,
+        conditionId: true,
+        title: true,
+        category: true,
+        createdAt: true,
       },
     });
 
