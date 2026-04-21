@@ -21,9 +21,6 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Compile worker TypeScript → JavaScript
-RUN npx tsc --project tsconfig.worker.json
-
 # ── Stage 3: app runner ───────────────────────────────────────────────────
 FROM node:20-alpine AS app
 RUN apk add --no-cache libc6-compat openssl
@@ -46,23 +43,3 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
-
-# ── Stage 4: worker runner ────────────────────────────────────────────────
-FROM node:20-alpine AS worker
-RUN apk add --no-cache libc6-compat openssl
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser  --system --uid 1001 workeruser
-
-# Copy compiled worker + dependencies
-COPY --from=builder /app/dist/worker.js  ./worker.js
-COPY --from=builder /app/dist/src        ./src
-COPY --from=deps    /app/node_modules    ./node_modules
-COPY --from=builder /app/prisma          ./prisma
-
-USER workeruser
-
-CMD ["node", "worker.js"]
