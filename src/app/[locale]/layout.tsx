@@ -12,8 +12,8 @@ export const metadata: Metadata = {
     default: 'SabiMarket — Africa\'s Native Prediction Market',
     template: '%s | SabiMarket',
   },
-  description: 'SabiMarket is Africa\'s first decentralised prediction market. Bet on real-world events across politics, sports, economy, and more — built on Flow blockchain.',
-  keywords: ['prediction market', 'africa', 'crypto', 'betting', 'nigeria', 'kenya', 'ghana', 'defi', 'web3', 'prediction', 'sabimarket', 'flow'],
+  description: 'SabiMarket is Africa\'s first decentralised prediction market. Bet on real-world events across politics, sports, economy, and more — built on Stellar.',
+  keywords: ['prediction market', 'africa', 'crypto', 'betting', 'nigeria', 'kenya', 'ghana', 'defi', 'web3', 'prediction', 'sabimarket', 'stellar', 'xlm'],
   authors: [{ name: 'SabiMarket', url: 'https://sabimarket.xyz' }],
   creator: 'SabiMarket',
   metadataBase: new URL('https://sabimarket.xyz'),
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     url: 'https://sabimarket.xyz',
     siteName: 'SabiMarket',
     title: 'SabiMarket — Africa\'s Native Prediction Market',
-    description: 'Africa\'s first decentralised prediction market. Bet on real-world events — built on Flow blockchain.',
+    description: 'Africa\'s first decentralised prediction market. Bet on real-world events — built on Stellar.',
     images: [
       {
         url: '/logo.png',

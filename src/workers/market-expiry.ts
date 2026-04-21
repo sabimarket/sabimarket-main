@@ -23,7 +23,11 @@ async function fetchExpiredMarkets(): Promise<Array<{ marketId: string; address:
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return data.markets ?? [];
+    // API returns { conditionId, title, category, createdAt } — conditionId IS the market address
+    return (data.markets ?? []).map((m: { conditionId: string }) => ({
+      marketId: m.conditionId,
+      address: m.conditionId,
+    }));
   } catch (err) {
     console.error('[market-expiry] failed to fetch expired markets:', err);
     return [];

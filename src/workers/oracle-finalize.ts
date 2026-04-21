@@ -87,7 +87,7 @@ async function submitOnChainProposal(
   try {
     const {
       Keypair, Contract, TransactionBuilder, BASE_FEE,
-      nativeToScVal, Address, xdr, rpc,
+      Address, xdr, rpc,
     } = await import('@stellar/stellar-sdk');
 
     const keypair = Keypair.fromSecret(secret);
@@ -104,8 +104,8 @@ async function submitOnChainProposal(
     })
       .addOperation(contract.call(
         'propose',
-        nativeToScVal(Address.fromString(keypair.publicKey()), { type: 'address' }), // proposer
-        nativeToScVal(Address.fromString(marketAddress), { type: 'address' }),        // market
+        Address.fromString(keypair.publicKey()).toScVal(), // proposer
+        Address.fromString(marketAddress).toScVal(),        // market
         verdictScVal,                                                                  // verdict
         xdr.ScVal.scvBytes(Buffer.from(evidenceUri, 'utf8')),                         // evidence_uri
         xdr.ScVal.scvBytes(Buffer.from(verdictHash.padEnd(64, '0').slice(0, 64), 'hex')), // ai_verdict_hash BytesN<32>
@@ -143,7 +143,7 @@ export async function processOracleFinalize(job: OracleFinalizeJob): Promise<voi
   // 1. Fetch market question from DB or on-chain
   let question = marketId; // fallback
   try {
-    const { prisma } = await import('@/lib/prisma');
+    const { prisma } = await import('../lib/prisma');
     const market = await (prisma as any).market?.findUnique({ where: { marketId } });
     if (market?.question) question = market.question;
   } catch {

@@ -6,7 +6,6 @@
     "moduleResolution": "node",
     "outDir": "dist",
     "noEmit": false,
-    "jsx": undefined,
     "lib": ["ES2020"],
     "paths": {
       "@/*": ["./src/*"]

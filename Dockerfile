@@ -22,7 +22,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # Compile worker TypeScript → JavaScript
-RUN npx tsc --project tsconfig.worker.json || true
+RUN npx tsc --project tsconfig.worker.json
 
 # ── Stage 3: app runner ───────────────────────────────────────────────────
 FROM node:20-alpine AS app
