@@ -6,6 +6,7 @@
 import { rpc, Contract, TransactionBuilder, BASE_FEE, xdr } from '@stellar/stellar-sdk';
 import { STELLAR_CONTRACTS, STELLAR_NETWORK_PASSPHRASE } from './contracts';
 import { getSorobanServer } from './client';
+import { prisma } from '@/lib/prisma';
 import type { Market } from '@/lib/polymarket/types';
 
 // Burner read-only account for simulation (Stellar allows any valid address for sims)
@@ -122,39 +123,113 @@ function parseMarketRecord(record: Record<string, any>): Market {
 
 /** Fetch all markets registered with SabiMarketFactory */
 export async function fetchAfricanMarkets(): Promise<(Market & { uiCategory: string })[]> {
+  // ── Primary: DB (MarketCuration) ─────────────────────────────────────────
+  // The DB is seeded with all 31 markets and is always available.
+  // On-chain state (prices, volumes) is enriched per-market when possible.
   try {
-    const server = getSorobanServer();
+    const curated = await prisma.marketCuration.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    // Attempt to get market count
+    if (curated.length > 0) {
+      const markets: (Market & { uiCategory: string })[] = curated.map((m) => {
+        const uiCategory = assignCategory(m.category, m.title);
+        return {
+          id: m.conditionId,
+          condition_id: m.conditionId,
+          question: m.title,
+          description: '',
+          category: m.category,
+          imageUri: '',
+          image: '',
+          outcomes: ['Yes', 'No'],
+          // Default 50/50 until on-chain state is fetched
+          outcomePrices: ['0.5000', '0.5000'],
+          volume: '0',
+          active: true,
+          closed: false,
+          resolved: false,
+          outcome: 0,
+          endDate: '',
+          totalYesShares: '0.000000',
+          totalNoShares: '0.000000',
+          totalCollateral: '0.000000',
+          createdAt: Math.floor(m.createdAt.getTime() / 1000),
+          uiCategory,
+        };
+      });
+
+      // Best-effort: enrich first 10 markets with live on-chain state
+      // (don't await all — too slow; rest show default 50/50)
+      try {
+        const allVal = await callContract(STELLAR_CONTRACTS.FACTORY, 'get_all_markets');
+        const raw = decodeScVal(allVal);
+        if (Array.isArray(raw)) {
+          const onChainMap = new Map<string, ReturnType<typeof parseMarketRecord>>();
+          for (const item of raw) {
+            try {
+              const record = item as Record<string, unknown>;
+              // Factory records have 'address' field as the market ID
+              const addr = (record.address as string) ?? (record.market_id as string) ?? '';
+              if (addr) {
+                const parsed = parseMarketRecord({ ...record, market_id: addr });
+                onChainMap.set(addr, parsed);
+              }
+            } catch { /* skip */ }
+          }
+          for (const m of markets) {
+            const onChain = onChainMap.get(m.id);
+            if (onChain) {
+              m.outcomePrices = onChain.outcomePrices;
+              m.volume = onChain.volume;
+              m.active = onChain.active;
+              m.closed = onChain.closed;
+              m.resolved = onChain.resolved;
+              m.endDate = onChain.endDate;
+              m.totalYesShares = onChain.totalYesShares;
+              m.totalNoShares = onChain.totalNoShares;
+              m.totalCollateral = onChain.totalCollateral;
+            }
+          }
+        }
+      } catch {
+        // On-chain enrichment failed — show DB data with default prices
+      }
+
+      return markets;
+    }
+  } catch (err) {
+    console.error('[Stellar] DB fetch error:', err);
+  }
+
+  // ── Fallback: on-chain factory ────────────────────────────────────────────
+  try {
     let countVal: xdr.ScVal;
     try {
       countVal = await callContract(STELLAR_CONTRACTS.FACTORY, 'market_count');
     } catch {
-      // Factory may not have markets yet — return empty
       return [];
     }
 
     const count = decodeScVal(countVal) as number;
     if (!count || count === 0) return [];
 
-    // Fetch all markets (factory returns a Vec<MarketRecord>)
     const allVal = await callContract(STELLAR_CONTRACTS.FACTORY, 'get_all_markets');
     const raw = decodeScVal(allVal);
-
     if (!Array.isArray(raw)) return [];
 
     const markets: (Market & { uiCategory: string })[] = [];
     for (const item of raw) {
       try {
         const record = item as Record<string, unknown>;
-        const market = parseMarketRecord(record);
+        const addr = (record.address as string) ?? (record.market_id as string) ?? '';
+        const market = parseMarketRecord({ ...record, market_id: addr });
+        if (!market.id) continue;
         const uiCategory = assignCategory(market.category, market.question);
         markets.push({ ...market, uiCategory });
-      } catch {
-        // Skip malformed market records
-      }
+      } catch { /* skip */ }
     }
-
     return markets;
   } catch (err) {
     console.error('[Stellar] fetchAfricanMarkets error:', err);
