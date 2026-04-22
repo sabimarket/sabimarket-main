@@ -17,6 +17,7 @@ interface MarketCuration {
   createdAt: string;
 }
 
+interface AnalyticsData {
   overview: {
     totalUsers: number;
     newUsers: number;
