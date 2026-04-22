@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Copy, ExternalLink, Settings, LogOut, ChevronDown,
-  CheckCircle, Wallet, TrendingUp, Download
+  CheckCircle, Wallet, TrendingUp, Download, Droplets
 } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
 import { useWallet } from '@/components/Providers';
@@ -34,6 +34,7 @@ export function WalletMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
+  const [fundingBot, setFundingBot] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -63,6 +64,20 @@ export function WalletMenu() {
 
   const handleViewOnExplorer = () => {
     if (address) window.open(accountLink(address), '_blank');
+  };
+
+  const handleFriendbot = async () => {
+    if (!address) return;
+    setFundingBot(true);
+    try {
+      await fetch(`https://friendbot.stellar.org/?addr=${encodeURIComponent(address)}`);
+      // Refetch balance after a short delay
+      setTimeout(() => {
+        fetchUsdcBalance(address).then(bal => setUsdcBalance(bal)).catch(() => {});
+      }, 2000);
+    } finally {
+      setFundingBot(false);
+    }
   };
 
   if (!mounted) {
@@ -161,6 +176,14 @@ export function WalletMenu() {
               label="View on Stellar Expert"
               onClick={handleViewOnExplorer}
             />
+            {(usdcBalance === 0 || usdcBalance === null) && (
+              <MenuItem
+                icon={Droplets}
+                label={fundingBot ? 'Funding…' : 'Fund with Friendbot (Testnet)'}
+                onClick={handleFriendbot}
+                color="#F5A623"
+              />
+            )}
             <MenuItem
               icon={TrendingUp}
               label="My Portfolio"

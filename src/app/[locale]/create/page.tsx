@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useRef } from 'react';
+import { useRouter } from '@/i18n/routing';
+import { Link } from '@/i18n/routing';
 import {
   ArrowLeft, ArrowRight, CheckCircle, Loader2, Lightbulb,
-  Calendar, Tag, Shield, Sparkles, Globe
+  Calendar, Tag, Shield, Sparkles, Globe, Upload, X as XIcon
 } from 'lucide-react';
 import { useWallet } from '@/components/Providers';
 import { signTransactionXDR } from '@/lib/stellar/wallet';
@@ -99,6 +99,25 @@ function Field({
 const inputClass = 'w-full bg-white/[0.04] border border-white/[0.09] text-white text-[14px] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#00D26A]/40 focus:border-[#00D26A]/30 transition-all placeholder:text-[#5A5550]';
 const textareaClass = `${inputClass} resize-none`;
 
+// ─── Cloudinary unsigned upload ───────────────────────────────────────────
+
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? 'dpy5zhquf';
+const UPLOAD_PRESET = 'sabimarket_markets'; // create unsigned preset in Cloudinary dashboard
+
+async function uploadToCloudinary(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', UPLOAD_PRESET);
+  fd.append('folder', 'sabimarkets/markets');
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: 'POST',
+    body: fd,
+  });
+  if (!res.ok) throw new Error('Image upload failed');
+  const data = await res.json();
+  return data.secure_url as string;
+}
+
 // ─── AI title suggestion (calls OpenAI via API route) ─────────────────────
 
 async function suggestTitle(question: string): Promise<string | null> {
@@ -121,7 +140,7 @@ async function suggestTitle(question: string): Promise<string | null> {
 async function createMarketOnChain(address: string, form: MarketForm): Promise<string> {
   const {
     rpc, Contract, TransactionBuilder, BASE_FEE,
-    Networks, nativeToScVal,
+    Networks, nativeToScVal, Address,
   } = await import('@stellar/stellar-sdk');
 
   const rpcUrl = process.env.NEXT_PUBLIC_STELLAR_RPC ?? 'https://soroban-testnet.stellar.org';
@@ -152,9 +171,9 @@ async function createMarketOnChain(address: string, form: MarketForm): Promise<s
   })
     .addOperation(contract.call(
       'register_market',
-      nativeToScVal(address),   // caller
-      nativeToScVal(marketId),  // market_id
-      params,                   // MarketParams
+      Address.fromString(address).toScVal(), // caller — must be ScvAddress not ScvString
+      nativeToScVal(marketId),               // market_id (string)
+      params,                                // MarketParams
     ))
     .setTimeout(30)
     .build();
@@ -181,6 +200,8 @@ export default function CreateMarketPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { address, isConnected, connect } = useWallet();
   const router = useRouter();
 
@@ -358,13 +379,54 @@ export default function CreateMarketPage() {
               />
             </Field>
 
-            <Field label="Image URL" hint="Optional — IPFS or HTTPS">
-              <input
-                value={form.imageUri}
-                onChange={set('imageUri')}
-                placeholder="https://… or ipfs://…"
-                className={inputClass}
-              />
+            <Field label="Market Image" hint="Optional — upload or paste URL">
+              {form.imageUri ? (
+                <div className="relative w-full h-32 rounded-xl overflow-hidden border border-white/[0.09]">
+                  <img src={form.imageUri} alt="Market" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => setForm(prev => ({ ...prev, imageUri: '' }))}
+                    className="cursor-pointer absolute top-2 right-2 p-1 bg-black/60 rounded-full text-white hover:bg-black/80"
+                  >
+                    <XIcon size={12} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    value={form.imageUri}
+                    onChange={set('imageUri')}
+                    placeholder="https://… or ipfs://…"
+                    className={`${inputClass} flex-1`}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="cursor-pointer shrink-0 flex items-center gap-1.5 px-3 py-2 bg-white/[0.05] border border-white/[0.09] rounded-xl text-[12px] font-medium text-[#7A7068] hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
+                  >
+                    {uploadingImage ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                    {uploadingImage ? 'Uploading…' : 'Upload'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingImage(true);
+                      try {
+                        const url = await uploadToCloudinary(file);
+                        setForm(prev => ({ ...prev, imageUri: url }));
+                      } catch {
+                        setError('Image upload failed. Please try a URL instead.');
+                      } finally {
+                        setUploadingImage(false);
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </Field>
 
             <Field label="Resolution Date">
@@ -402,14 +464,45 @@ export default function CreateMarketPage() {
               />
             </Field>
 
-            <Field label="Resolution Sources" hint="Where will the oracle look?">
-              <textarea
-                rows={3}
-                value={form.resolutionSources}
-                onChange={set('resolutionSources')}
-                placeholder="Official CAF website, BBC Sport, Reuters, CoinGecko…"
-                className={textareaClass}
-              />
+            <Field label="Resolution Sources" hint="Add URLs where the oracle will verify the outcome">
+              {form.resolutionSources.split('\n').filter(Boolean).map((src, i) => (
+                <div key={i} className="flex items-center gap-2 mb-1.5">
+                  <input
+                    value={src}
+                    onChange={e => {
+                      const lines = form.resolutionSources.split('\n');
+                      lines[i] = e.target.value;
+                      setForm(prev => ({ ...prev, resolutionSources: lines.join('\n') }));
+                    }}
+                    placeholder="https://…"
+                    className={`${inputClass} flex-1`}
+                  />
+                  <button
+                    onClick={() => {
+                      const lines = form.resolutionSources.split('\n').filter(Boolean);
+                      lines.splice(i, 1);
+                      setForm(prev => ({ ...prev, resolutionSources: lines.join('\n') }));
+                    }}
+                    className="cursor-pointer shrink-0 p-2 rounded-lg text-[#FF4560] hover:bg-[#FF4560]/10 transition-colors"
+                  >
+                    <XIcon size={13} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setForm(prev => ({ ...prev, resolutionSources: (prev.resolutionSources ? prev.resolutionSources + '\n' : '') + '' }))}
+                className="cursor-pointer flex items-center gap-1.5 text-[12px] text-[#00D26A] hover:underline mt-1"
+              >
+                + Add Source URL
+              </button>
+              {form.resolutionSources.split('\n').filter(Boolean).length === 0 && (
+                <button
+                  onClick={() => setForm(prev => ({ ...prev, resolutionSources: '' }))}
+                  className="cursor-pointer flex items-center gap-1.5 text-[12px] text-[#7A7068] hover:text-white mt-1"
+                >
+                  + Add first source URL
+                </button>
+              )}
             </Field>
           </div>
         )}

@@ -29,7 +29,15 @@ async function buildAndSignInvocation(
   const account = await server.getAccount(address);
 
   const contract = new Contract(contractId);
-  const scArgs = (args as Parameters<typeof nativeToScVal>[0][]).map(a => nativeToScVal(a));
+
+  // Encode args: Stellar addresses (G.../C... 56-char) must be ScvAddress, not ScvString
+  const isStellarAddress = (v: unknown): v is string =>
+    typeof v === 'string' && v.length === 56 && /^[A-Z2-7]+$/.test(v);
+
+  const scArgs = args.map(a => {
+    if (isStellarAddress(a)) return Address.fromString(a).toScVal();
+    return nativeToScVal(a as never);
+  });
 
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
@@ -66,6 +74,7 @@ export function BetModal({
   const [step, setStep] = useState<'idle' | 'approving' | 'buying' | 'done' | 'error'>('idle');
   const [txError, setTxError] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [approveTxHash, setApproveTxHash] = useState('');
   const [selectedOutcome, setSelectedOutcome] = useState<string>(initialOutcome || 'YES');
   const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
 
@@ -79,7 +88,7 @@ export function BetModal({
 
   // Reset on close
   useEffect(() => {
-    if (!isOpen) { setStep('idle'); setTxError(''); setTxHash(''); }
+    if (!isOpen) { setStep('idle'); setTxError(''); setTxHash(''); setApproveTxHash(''); }
   }, [isOpen]);
 
   // Fetch USDC balance
@@ -126,12 +135,13 @@ export function BetModal({
       // Step 1 — Approve USDC spending
       setStep('approving');
       toastInfo('Step 1/2 — Approve USDC', 'Please confirm in Freighter.');
-      await buildAndSignInvocation(address, STELLAR_CONTRACTS.USDC, 'approve', [
+      const approveHash = await buildAndSignInvocation(address, STELLAR_CONTRACTS.USDC, 'approve', [
         address,          // from
         market.id,        // spender (market contract)
         usdcAmount,       // amount
         null,             // expiry (null = max)
       ]);
+      setApproveTxHash(approveHash);
 
       // Step 2 — Buy shares
       setStep('buying');
@@ -291,14 +301,43 @@ export function BetModal({
             </div>
           )}
 
-          {/* Success tx link */}
+          {/* 2-step progress indicator */}
+          {(step === 'approving' || step === 'buying' || step === 'done') && (
+            <div className="flex flex-col gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+              {[
+                { label: 'Approve USDC', active: step === 'approving', done: step === 'buying' || step === 'done', hash: approveTxHash },
+                { label: 'Buy Shares', active: step === 'buying', done: step === 'done', hash: txHash },
+              ].map((s, i) => (
+                <div key={i} className="flex items-center gap-3 text-[12px]">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${
+                    s.done ? 'bg-[#00D26A] border-[#00D26A]' :
+                    s.active ? 'border-[#00D26A] bg-[#00D26A]/10' :
+                    'border-white/[0.12] bg-transparent'
+                  }`}>
+                    {s.done ? <span className="text-black text-[10px] font-bold">✓</span> :
+                     s.active ? <Loader2 size={10} className="animate-spin text-[#00D26A]" /> :
+                     <span className="text-[#7A7068] text-[10px]">{i + 1}</span>}
+                  </div>
+                  <span className={s.done || s.active ? 'text-white font-medium' : 'text-[#7A7068]'}>{s.label}</span>
+                  {s.hash && (
+                    <a href={`https://stellar.expert/explorer/testnet/tx/${s.hash}`} target="_blank" rel="noopener noreferrer"
+                       className="ml-auto flex items-center gap-1 text-[#00D26A] hover:underline text-[10px]">
+                      <ExternalLink size={10} /> tx
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Success tx link (final) */}
           {step === 'done' && txHash && (
             <a
               href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
               target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 text-[12px] text-[#00D26A] hover:underline"
             >
-              <ExternalLink size={12} /> View transaction on Stellar Expert
+              <ExternalLink size={12} /> View buy transaction on Stellar Expert
             </a>
           )}
 

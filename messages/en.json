@@ -15,10 +15,46 @@
     "settings": "Settings",
     "disconnect": "Disconnect",
     "copy_address": "Copy Address",
-    "view_on_polygon": "View on Polygon"
+    "view_on_stellar": "View on Stellar Expert",
+    "view_on_polygon": "View on Stellar Expert",
+    "create_market": "Create Market",
+    "explore_markets": "Explore Markets",
+    "no_markets": "No Markets Available",
+    "loading": "Loading…"
   },
   "Market": {
     "live_odds": "Live Odds",
-    "volume": "Volume"
+    "volume": "Volume",
+    "yes_probability": "YES Probability",
+    "bet_yes": "Bet YES",
+    "bet_no": "Bet NO",
+    "view_details": "View Details",
+    "closes": "Closes",
+    "resolved": "Resolved",
+    "resolver": "Resolver"
+  },
+  "Create": {
+    "title": "Create a Market",
+    "subtitle": "Turn your prediction into a live on-chain market on Stellar.",
+    "step_question": "Question",
+    "step_details": "Details",
+    "step_rules": "Rules",
+    "step_resolver": "Resolver",
+    "step_preview": "Preview",
+    "submit": "Submit Market",
+    "submitting": "Submitting…",
+    "connect_to_submit": "Connect your Freighter wallet to submit this market."
+  },
+  "Wallet": {
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "get_freighter": "Get Freighter",
+    "fund_friendbot": "Fund with Friendbot (Testnet)",
+    "my_portfolio": "My Portfolio",
+    "settings": "Settings",
+    "disconnect": "Disconnect",
+    "copy_address": "Copy Address",
+    "copied": "Copied!",
+    "usdc_balance": "USDC Balance"
   }
 }

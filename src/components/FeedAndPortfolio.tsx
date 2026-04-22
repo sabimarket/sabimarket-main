@@ -66,7 +66,7 @@ export function FeedAndPortfolio({ heroMarket, feedMarkets, heroYesPrice }: Prop
   useEffect(() => {
     if (!address || activeTab !== 'portfolio') return;
     setLoadingPortfolio(true);
-    fetch(`/api/clob/positions?address=${address}`)
+    fetch(`/api/markets/positions?address=${address}`)
       .then(r => r.json())
       .then(data => {
         setPositions(data.positions || []);

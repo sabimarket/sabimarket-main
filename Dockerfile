@@ -43,3 +43,30 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
+
+# ── Stage 4: Worker runner (BullMQ background service) ────────────────────
+FROM node:20-alpine AS worker
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser  --system --uid 1001 nodeuser
+
+COPY --from=deps    /app/node_modules ./node_modules
+COPY --from=deps    /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/tsconfig.worker.json ./tsconfig.worker.json
+COPY --from=builder /app/worker.ts ./worker.ts
+COPY --from=builder /app/src/workers ./src/workers
+COPY --from=builder /app/src/lib ./src/lib
+COPY --from=builder /app/prisma ./prisma
+
+# Compile the worker entry point
+RUN npx --yes tsx worker.ts &>/dev/null || true
+RUN npx tsc --project tsconfig.worker.json --outDir dist 2>/dev/null || \
+    npx esbuild worker.ts --bundle --platform=node --outfile=dist/worker.js --external:@prisma/client --external:ioredis
+
+USER nodeuser
+CMD ["node", "dist/worker.js"]
+

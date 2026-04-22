@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { Market } from "@/lib/polymarket/types";
-import { TrendingUp, ArrowUpRight } from "lucide-react";
+import { TrendingUp, ArrowUpRight, Clock } from "lucide-react";
+import { useCountdown } from "@/hooks/useCountdown";
 
 interface MarketCardProps {
   market: Market & { uiCategory?: string };
@@ -12,6 +13,7 @@ interface MarketCardProps {
 }
 
 export function MarketCard({ market, index, onMarketClick, onBetClick }: MarketCardProps) {
+  const countdown = useCountdown(market.endDate);
   const volUSDC = parseInt(market.volume || "0");
   const stringVol = volUSDC >= 1000000 
     ? (volUSDC / 1000000).toFixed(1) + 'M' 
@@ -134,11 +136,21 @@ export function MarketCard({ market, index, onMarketClick, onBetClick }: MarketC
           <TrendingUp size={11} />
           <span className="text-[11px] font-medium">${stringVol} Vol.</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3.5 h-3.5 rounded-full bg-[#1A1511] border border-white/10 flex items-center justify-center">
-            <span className="text-[7px] text-[#7A7068] font-bold">✦</span>
+        <div className="flex items-center gap-2.5">
+          {countdown && (
+            <div className={`flex items-center gap-1 text-[10px] font-mono ${
+              countdown === 'Ended' ? 'text-[#FF4560]' : 'text-[#7A7068]'
+            }`}>
+              <Clock size={9} />
+              <span>{countdown}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <div className="w-3.5 h-3.5 rounded-full bg-[#1A1511] border border-white/10 flex items-center justify-center">
+              <span className="text-[7px] text-[#7A7068] font-bold">✦</span>
+            </div>
+            <span className="text-[10px] text-[#7A7068]">Stellar</span>
           </div>
-          <span className="text-[10px] text-[#7A7068]">Stellar</span>
         </div>
       </div>
     </motion.div>

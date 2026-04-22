@@ -38,6 +38,8 @@ export function useWallet() {
   return useContext(WalletContext);
 }
 
+const WALLET_CACHE_KEY = 'sabimarket:wallet';
+
 function WalletProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<FreighterAccount | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -50,7 +52,13 @@ function WalletProvider({ children }: { children: ReactNode }) {
       setIsInstalled(installed);
       if (installed) {
         const addr = await getConnectedAddress();
-        if (addr) setAccount({ address: addr, network: 'testnet' });
+        if (addr) {
+          setAccount({ address: addr, network: 'testnet' });
+          localStorage.setItem(WALLET_CACHE_KEY, addr);
+        } else {
+          // Freighter no longer connected — clear stale cache
+          localStorage.removeItem(WALLET_CACHE_KEY);
+        }
       }
     })();
   }, []);
@@ -59,7 +67,10 @@ function WalletProvider({ children }: { children: ReactNode }) {
     setConnecting(true);
     try {
       const acc = await connectFreighter();
-      if (acc) setAccount(acc);
+      if (acc) {
+        setAccount(acc);
+        localStorage.setItem(WALLET_CACHE_KEY, acc.address);
+      }
     } finally {
       setConnecting(false);
     }
@@ -67,6 +78,7 @@ function WalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(() => {
     setAccount(null);
+    localStorage.removeItem(WALLET_CACHE_KEY);
   }, []);
 
   return (

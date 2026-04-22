@@ -3,9 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useWallet } from '@/components/Providers';
 import Link from 'next/link';
-import { ArrowLeft, Users, DollarSign, Activity, Eye, TrendingUp, TrendingDown, Wallet, Globe } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Activity, Eye, TrendingUp, TrendingDown, Wallet, Globe, LayoutList, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
 
-interface AnalyticsData {
+interface MarketCuration {
+  id: string;
+  conditionId: string;
+  title: string;
+  category: string;
+  isActive: boolean;
+  endDate: string | null;
+  imageUri: string | null;
+  description: string | null;
+  createdAt: string;
+}
+
   overview: {
     totalUsers: number;
     newUsers: number;
@@ -54,23 +65,26 @@ interface AnalyticsData {
   }>;
 }
 
-// Simple admin auth - hardcode admin wallet addresses
-const ADMIN_WALLETS = [
-  '0xYourAdminWalletAddress1', // Replace with your wallet
-  '0xYourAdminWalletAddress2', // Add more admin wallets
-];
+// Read admin wallets from env (comma-separated), fall back to oracle public key
+const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS ?? 'GB5YQF53DRKEM44DF5HCDHIHBX6CKIQGQFSDB2R2QZKUNFRFTVONVS7E')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 export default function AdminDashboard() {
   const { address, isConnected } = useWallet();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
+  const [activeTab, setActiveTab] = useState<'analytics' | 'markets'>('analytics');
+  const [markets, setMarkets] = useState<MarketCuration[]>([]);
+  const [marketsLoading, setMarketsLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const isAdmin = isConnected && address && ADMIN_WALLETS.includes(address);
 
   useEffect(() => {
     if (!isAdmin) return;
-
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -82,9 +96,46 @@ export default function AdminDashboard() {
       }
       setLoading(false);
     };
-
     fetchData();
   }, [isAdmin, days]);
+
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'markets') return;
+    const fetchMarkets = async () => {
+      setMarketsLoading(true);
+      try {
+        const res = await fetch('/api/admin/markets', {
+          headers: { 'x-wallet-address': address! },
+        });
+        const json = await res.json();
+        setMarkets(json);
+      } catch (error) {
+        console.error('Failed to fetch markets:', error);
+      }
+      setMarketsLoading(false);
+    };
+    fetchMarkets();
+  }, [isAdmin, activeTab, address]);
+
+  const toggleMarket = async (id: string, current: boolean) => {
+    setTogglingId(id);
+    try {
+      const res = await fetch('/api/admin/markets', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-wallet-address': address!,
+        },
+        body: JSON.stringify({ id, isActive: !current }),
+      });
+      if (res.ok) {
+        const updated: MarketCuration = await res.json();
+        setMarkets((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      }
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   if (!isConnected) {
     return (
@@ -112,17 +163,19 @@ export default function AdminDashboard() {
   }
 
   if (loading || !data) {
-    return (
-      <div className="min-h-screen bg-[#080706] text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00D26A] mx-auto mb-4"></div>
-          <p className="text-[#7A7068]">Loading analytics...</p>
+    if (activeTab !== 'markets') {
+      return (
+        <div className="min-h-screen bg-[#080706] text-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00D26A] mx-auto mb-4"></div>
+            <p className="text-[#7A7068]">Loading analytics...</p>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
-  const { overview, topMarketsByViews, topMarketsByVolume, recentOrders, languageStats, providerStats, dailyTrend } = data;
+  const { overview, topMarketsByViews, topMarketsByVolume, recentOrders, languageStats, providerStats, dailyTrend } = data ?? {} as AnalyticsData;
 
   return (
     <div className="min-h-screen bg-[#080706] text-white">
@@ -136,21 +189,52 @@ export default function AdminDashboard() {
             <h1 className="text-xl font-bold">Admin Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
-            <select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="bg-[#0F0D0B] border border-white/[0.1] rounded-lg px-3 py-1.5 text-sm">
-              <option value={1}>Last 24 hours</option>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
+            {activeTab === 'analytics' && (
+              <select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="bg-[#0F0D0B] border border-white/[0.1] rounded-lg px-3 py-1.5 text-sm">
+                <option value={1}>Last 24 hours</option>
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+            )}
           </div>
+        </div>
+        {/* Tab bar */}
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 flex gap-1 pb-0">
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'analytics'
+                ? 'border-[#00D26A] text-white'
+                : 'border-transparent text-[#7A7068] hover:text-white'
+            }`}>
+            <Activity size={14} /> Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('markets')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'markets'
+                ? 'border-[#00D26A] text-white'
+                : 'border-transparent text-[#7A7068] hover:text-white'
+            }`}>
+            <LayoutList size={14} /> Markets
+          </button>
         </div>
       </header>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
-        
+        {activeTab === 'markets' ? (
+          <MarketsTab
+            markets={markets}
+            loading={marketsLoading}
+            togglingId={togglingId}
+            onToggle={toggleMarket}
+          />
+        ) : (
+        <>
         {/* Overview Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
@@ -332,6 +416,87 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+        </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketsTab({
+  markets,
+  loading,
+  togglingId,
+  onToggle,
+}: {
+  markets: MarketCuration[];
+  loading: boolean;
+  togglingId: string | null;
+  onToggle: (id: string, current: boolean) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#00D26A]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-[#0F0D0B] border border-white/[0.07] rounded-2xl overflow-hidden">
+      <div className="p-6 border-b border-white/[0.05]">
+        <h2 className="text-lg font-bold">Market Curation</h2>
+        <p className="text-[#7A7068] text-sm mt-1">{markets.length} markets listed</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/[0.05]">
+              <th className="text-left py-3 px-4 font-medium text-[#7A7068]">Title</th>
+              <th className="text-left py-3 px-4 font-medium text-[#7A7068]">Category</th>
+              <th className="text-left py-3 px-4 font-medium text-[#7A7068]">End Date</th>
+              <th className="text-left py-3 px-4 font-medium text-[#7A7068]">Condition ID</th>
+              <th className="text-center py-3 px-4 font-medium text-[#7A7068]">Active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {markets.map((m) => (
+              <tr key={m.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                <td className="py-3 px-4 max-w-[280px]">
+                  <span className="line-clamp-2 text-white">{m.title}</span>
+                </td>
+                <td className="py-3 px-4 text-[#7A7068] capitalize">{m.category}</td>
+                <td className="py-3 px-4 text-[#7A7068] font-mono text-xs">
+                  {m.endDate ? new Date(m.endDate).toLocaleDateString() : '—'}
+                </td>
+                <td className="py-3 px-4">
+                  <a
+                    href={`https://stellar.expert/explorer/testnet/contract/${m.conditionId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs font-mono text-[#7A7068] hover:text-[#00D26A] transition-colors"
+                  >
+                    {m.conditionId.slice(0, 8)}…{m.conditionId.slice(-4)}
+                    <ExternalLink size={10} />
+                  </a>
+                </td>
+                <td className="py-3 px-4 text-center">
+                  <button
+                    onClick={() => onToggle(m.id, m.isActive)}
+                    disabled={togglingId === m.id}
+                    className="transition-opacity disabled:opacity-40"
+                    title={m.isActive ? 'Deactivate' : 'Activate'}
+                  >
+                    {m.isActive
+                      ? <ToggleRight size={22} className="text-[#00D26A]" />
+                      : <ToggleLeft size={22} className="text-[#7A7068]" />
+                    }
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

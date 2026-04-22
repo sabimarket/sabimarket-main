@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "@/i18n/routing";
 import { MarketCard } from "./MarketCard";
 import { Market } from "@/lib/polymarket/types";
 import { BetModal } from "./BetModal";
-import { MarketDetailModal } from "./MarketDetailModal";
 import { Flame, Globe, Bitcoin, Landmark, Trophy, TrendingUp, Clapperboard } from "lucide-react";
 import { CreateMarketCTA } from "./CreateMarketCTA";
 
 export function MarketList({ initialMarkets }: { initialMarkets: (Market & { uiCategory: string })[] }) {
+    const router = useRouter();
     const [selectedCategory, setSelectedCategory] = useState<string>("All");
     
-    const [isDetailModalOpen, setDetailModalOpen] = useState(false);
     const [isBetModalOpen, setBetModalOpen] = useState(false);
     const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
     const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
@@ -32,8 +32,7 @@ export function MarketList({ initialMarkets }: { initialMarkets: (Market & { uiC
         : initialMarkets.filter(m => m.uiCategory === selectedCategory);
 
     const handleMarketClick = (market: Market) => {
-        setSelectedMarket(market);
-        setDetailModalOpen(true);
+        router.push(`/market/${market.id}`);
     };
 
     const handleBetClick = (e: React.MouseEvent, market: Market, outcome: "YES"|"NO", price: number) => {
@@ -95,17 +94,6 @@ export function MarketList({ initialMarkets }: { initialMarkets: (Market & { uiC
                     </div>
                 )}
             </div>
-
-            <MarketDetailModal 
-                isOpen={isDetailModalOpen} 
-                onClose={() => setDetailModalOpen(false)} 
-                market={selectedMarket}
-                onBet={(outcome, price) => {
-                    setSelectedOutcome(outcome);
-                    setSelectedPrice(price);
-                    setBetModalOpen(true);
-                }}
-            />
 
             <BetModal 
                 isOpen={isBetModalOpen} 

@@ -27,12 +27,15 @@ model User {
 }
 
 model MarketCuration {
-  id          String   @id @default(uuid())
-  conditionId String   @unique
+  id          String    @id @default(uuid())
+  conditionId String    @unique
   title       String
   category    String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  isActive    Boolean   @default(true)
+  endDate     DateTime?
+  imageUri    String?
+  description String?
+  createdAt   DateTime  @default(now())
 }
 
 model Comment {
